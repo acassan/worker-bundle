@@ -17,7 +17,34 @@ class Configuration implements ConfigurationInterface
      */
     public function getConfigTreeBuilder()
     {
-        $treeBuilder    = new TreeBuilder();
+        $treeBuilder = new TreeBuilder();
+        $rootNode = $treeBuilder->root('worker');
+
+        $rootNode
+        ->children()
+        ->arrayNode('providers')
+        ->useAttributeAsKey('key')
+        ->prototype('array')
+        ->children()
+        ->scalarNode('class')->isRequired()->end()
+        ->arrayNode('arguments')
+        ->defaultValue(array())
+        ->prototype('variable')->end()
+        ->end()
+        ->end()
+        ->end()
+        ->end()
+        ->arrayNode('queues')
+        ->useAttributeAsKey('key')
+        ->prototype('array')
+        ->children()
+        ->scalarNode('name')->isRequired()->end()
+        ->scalarNode('provider')->isRequired()->end()
+        ->end()
+        ->end()
+        ->end()
+        ->end()
+        ;
 
         return $treeBuilder;
     }

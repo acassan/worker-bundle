@@ -12,14 +12,38 @@ use Symfony\Component\DependencyInjection\Loader;
  *
  * To learn more see {@link http://symfony.com/doc/current/cookbook/bundles/extension.html}
  */
-class RemoteServerExtension extends Extension
+class WorkerExtension extends Extension
 {
     /**
      * {@inheritDoc}
      */
     public function load(array $configs, ContainerBuilder $container)
     {
-        $loader         = new Loader\YamlFileLoader($container, new FileLocator(__DIR__.'/../Resources/config'));
+        $configuration = new Configuration();
+        $config = $this->processConfiguration($configuration, $configs);
+        $container->setParameter('worker.config', $config);
+        if (isset($config['providers'])) {
+            foreach ($config['providers'] as $id => $provider) {
+                $container->setDefinition(
+                $this->getAlias().'.provider.'.$id,
+                new Definition($provider['class'], $provider['arguments'])
+                );
+            }
+        }
+
+        if (isset($config['queues'])) {
+            foreach ($config['queues'] as $id => $queue) {
+                $container->setDefinition(
+                $this->getAlias().'.queue.'.$id,
+                new Definition('WorkerBundle\Utils\Queue', array(
+                $queue['name'],
+                new Reference($this->getAlias().'.provider.'.$queue['provider'])
+                ))
+                );
+            }
+        }
+
+        $loader = new Loader\YamlFileLoader($container, new FileLocator(__DIR__.'/../Resources/config'));
         $loader->load('services.yml');
     }
 }

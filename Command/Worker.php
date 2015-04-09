@@ -2,6 +2,7 @@
 
 namespace WorkerBundle\Command;
 
+use WorkerBundle\Utils\WorkerManager;
 use WorkerBundle\WorkerBundleEvents;
 use WorkerBundle\Event\WorkerEvent;
 use WorkerBundle\Event\WorkerWorkloadEvent;
@@ -96,6 +97,11 @@ abstract class Worker extends Command implements ContainerAwareInterface
      * @var EventDispatcherInterface
      */
     private $dispatcher;
+
+    /**
+     * @var WorkerManager
+     */
+    private $workerManager;
 
 
     final protected function configure()
@@ -205,7 +211,8 @@ abstract class Worker extends Command implements ContainerAwareInterface
     {
         $this->input                = $input;
         $this->ouput                = $output;
-        $this->provider             = $this->container->get('app.provider.'. $this->getProviderName());
+        $this->workerManager        = $this->container->get('app.worker.manager');
+        $this->provider             = $this->getDefaultProvider();
         $this->dispatcher           = $this->container->get('event_dispatcher');
         $this->queueNameGenerator   = $this->getContainer()->get('app.worker.queuenamegenerator');
         $this->serializer           = new Serializer([new GetSetMethodNormalizer()], [new JsonEncoder()]);
@@ -242,14 +249,6 @@ abstract class Worker extends Command implements ContainerAwareInterface
     public function getDispatcher()
     {
         return $this->dispatcher;
-    }
-
-    /**
-     * @return string
-     */
-    protected function getProviderName()
-    {
-        return 'redis1';
     }
 
     /**
@@ -440,7 +439,9 @@ abstract class Worker extends Command implements ContainerAwareInterface
      */
     public function getDefaultProvider()
     {
-        return $this->getContainer()->get('app.provider.redis1');
+        $providerName = $this->workerManager->getCurrentProvider();
+
+        return $this->getContainer()->get('worker.provider.'.$providerName);
     }
 
 }

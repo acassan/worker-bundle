@@ -4,8 +4,8 @@ parameters:
     worker_bundle.queue.prefix: worker
 
     # Path to log
-    worker_bundle.worker.current.logpath: app\logs\worker\current\
-    worker_bundle.worker.finished.logpath: app\logs\worker\finished
+    worker_bundle.worker.current.logpath: app/logs/worker/current
+    worker_bundle.worker.finished.logpath: app/logs/worker/finished
 
 services:
     app.worker.queuenamegenerator:
@@ -17,3 +17,6 @@ services:
     app.worker.log:
         class: WorkerBundle\Utils\WorkerLogManager
         arguments: [%worker_bundle.worker.current.logpath%,%worker_bundle.worker.finished.logpath%]
+    app.worker.manager:
+        class: WorkerBundle\Utils\WorkerManager
+        arguments: [%worker.config%]
