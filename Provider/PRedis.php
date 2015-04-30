@@ -69,4 +69,48 @@ class PRedis extends BaseProvider
     {
         $this->predis->del($queueName);
     }
+
+    /**
+     * @param $key
+     * @param $score
+     * @param $value
+     * @return int
+     */
+    public function ZAdd($key, $score, $value)
+    {
+        return $this->predis->zadd($key,[$value => $score]);
+    }
+
+    /**
+     * @param $key
+     * @param $start
+     * @param $stop
+     * @param null $withScore
+     * @return array
+     */
+    public function ZRange($key, $start, $stop, $withScore = null)
+    {
+        return $this->predis->zrange($key,$start, $stop, $withScore);
+    }
+
+    /**
+     * @param $key
+     * @param $scoreMin
+     * @param $scoreMax
+     * @return array
+     */
+    public function ZRangeByScore($key, $scoreMin, $scoreMax)
+    {
+        return $this->predis->zrange($key,$scoreMin, $scoreMax);
+    }
+
+    /**
+     * @param $key
+     * @param $timestamp
+     * @return int
+     */
+    public function expireAt($key, $timestamp)
+    {
+        return $this->predis->expireat($key, $timestamp);
+    }
 }
