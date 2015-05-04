@@ -101,7 +101,7 @@ class PRedis extends BaseProvider
      */
     public function ZRangeByScore($key, $scoreMin, $scoreMax)
     {
-        return $this->predis->zrange($key,$scoreMin, $scoreMax);
+        return $this->predis->zrangebyscore($key,$scoreMin, $scoreMax);
     }
 
     /**
