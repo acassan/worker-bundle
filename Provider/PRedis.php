@@ -90,7 +90,7 @@ class PRedis extends BaseProvider
      */
     public function ZRange($key, $start, $stop, $withScore = null)
     {
-        return $this->predis->zrange($key,$start, $stop, $withScore);
+        return is_null($withScore) ? $this->predis->zrange($key,$start, $stop) : $this->predis->zrange($key,$start, $stop, $withScore);
     }
 
     /**
