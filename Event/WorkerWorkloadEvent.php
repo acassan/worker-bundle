@@ -36,6 +36,11 @@ Final Class WorkerWorkloadEvent extends Event
     private $exception;
 
     /**
+     * @var array
+     */
+    private $statistics;
+
+    /**
      * @param $workerProvider
      * @param $workerQueue
      * @param $workerName
@@ -49,6 +54,7 @@ Final Class WorkerWorkloadEvent extends Event
         $this->workerName       = $workerName;
         $this->workload         = $workload;
         $this->exception        = $exception;
+        $this->statistics       = [];
     }
 
     /**
@@ -89,5 +95,21 @@ Final Class WorkerWorkloadEvent extends Event
     public function getWorkerProvider()
     {
         return $this->workerProvider;
+    }
+
+    /**
+     * @return array
+     */
+    public function getStatistics()
+    {
+        return $this->statistics;
+    }
+
+    /**
+     * @param array $statistics
+     */
+    public function setStatistics($statistics)
+    {
+        $this->statistics = $statistics;
     }
 }

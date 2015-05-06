@@ -2,6 +2,7 @@
 
 namespace WorkerBundle\Command;
 
+use Symfony\Component\Stopwatch\Stopwatch;
 use WorkerBundle\Utils\WorkerManager;
 use WorkerBundle\WorkerBundleEvents;
 use WorkerBundle\Event\WorkerEvent;
@@ -103,6 +104,11 @@ abstract class Worker extends Command implements ContainerAwareInterface
      */
     private $workerManager;
 
+    /**
+     * @var Stopwatch
+     */
+    private $stopwatch;
+
 
     final protected function configure()
     {
@@ -113,6 +119,9 @@ abstract class Worker extends Command implements ContainerAwareInterface
         ->addOption('memory-limit', null, InputOption::VALUE_REQUIRED, 'Memory limit (Mb)', 0)
         ->addOption('worker-exit-on-exception', null, InputOption::VALUE_NONE, 'Stop the worker on exception')
         ;
+
+        // Start stopwatch timer
+        $this->stopwatch->start('worker');
 
         $this->configureWorker();
 
@@ -170,10 +179,26 @@ abstract class Worker extends Command implements ContainerAwareInterface
             $this->getOuput()->writeln(date('H:i:s')."- Worload received ..");
 
             try {
-                // Execute code worker
+
+                // Dispatch event initialize
                 $this->getDispatcher()->dispatch(WorkerBundleEvents::WORKER_WORKLOAD_INITIALIZE, new WorkerWorkloadEvent($this->getProvider(), $this->getQueue()->getName(), $this->getWorkerName(), $workload));
+
+                // Start stopwatch workload timer
+                $this->stopwatch->start('workload');
+
+                // Execute code worker
                 $controlCode = $this->executeWorker($input, $output, $workload);
-                $this->getDispatcher()->dispatch(WorkerBundleEvents::WORKER_WORKLOAD_COMPLETED, new WorkerWorkloadEvent($this->getProvider(), $this->getQueue()->getName(), $this->getWorkerName(), $workload));
+
+                // Stop workload timer
+                $workloadTimer = $this->stopwatch->stop('workload');
+
+                // Dispatch event completed
+                $workerWorkloadEvent = new WorkerWorkloadEvent($this->getProvider(), $this->getQueue()->getName(), $this->getWorkerName(), $workload);
+                $workerWorkloadEvent->setStatistics([
+                    'duration'  => $workloadTimer->getDuration(),
+                    'memory'    => $workloadTimer->getMemory(),
+                ]);
+                $this->getDispatcher()->dispatch(WorkerBundleEvents::WORKER_WORKLOAD_COMPLETED, $workerWorkloadEvent);
 
                 // Free memory
                 gc_collect_cycles();
