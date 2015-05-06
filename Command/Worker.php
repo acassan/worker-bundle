@@ -121,7 +121,7 @@ abstract class Worker extends Command implements ContainerAwareInterface
         ;
 
         // Start stopwatch timer
-        $this->stopwatch->start('worker');
+        $this->stopwatch = new Stopwatch();
 
         $this->configureWorker();
 
