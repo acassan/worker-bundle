@@ -12,7 +12,10 @@ use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Serializer\Encoder\JsonEncoder;
 use Symfony\Component\Serializer\Normalizer\GetSetMethodNormalizer;
 use Symfony\Component\Serializer\Serializer;
+use Symfony\Component\Stopwatch\Stopwatch;
+use WorkerBundle\Event\WorkerWorkloadEvent;
 use WorkerBundle\Utils\WorkerControlCodes;
+use WorkerBundle\WorkerBundleEvents;
 
 /**
  * Class Worker
@@ -65,6 +68,11 @@ abstract class Worker extends Command implements ContainerAwareInterface
      */
     private $serializer;
 
+    /**
+     * @var Stopwatch
+     */
+    private $stopwatch;
+
 
     final protected function configure()
     {
@@ -95,6 +103,7 @@ abstract class Worker extends Command implements ContainerAwareInterface
         $this->input                = $input;
         $this->ouput                = $output;
         $this->dispatcher           = $this->container->get('event_dispatcher');
+        $this->stopwatch            = new Stopwatch();
 
         // Limits
         $this->limit                = intval($input->getOption('worker-limit'));
@@ -136,8 +145,26 @@ abstract class Worker extends Command implements ContainerAwareInterface
             $this->getOuput()->writeln(date('H:i:s')."- Worload received ..", OutputInterface::VERBOSITY_DEBUG);
 
             try {
+
+                // Dispatch event initialize
+                $this->getDispatcher()->dispatch(WorkerBundleEvents::WORKER_WORKLOAD_INITIALIZE, new WorkerWorkloadEvent($this->getRedis(), $this->getQueueName(), get_class($this), $workload));
+
+                // Start stopwatch workload timer
+                $this->stopwatch->start('workload');
+
                 // Execute code worker
                 $controlCode = $this->executeWorker($input, $output, $workload);
+
+                // Stop workload timer
+                $workloadTimer = $this->stopwatch->stop('workload');
+
+                // Dispatch event completed
+                $workerWorkloadEvent = new WorkerWorkloadEvent($this->getRedis(), $this->getQueueName(), get_class($this), $workload);
+                $workerWorkloadEvent->setStatistics([
+                'duration'  => $workloadTimer->getDuration(),
+                'memory'    => $workloadTimer->getMemory(),
+                ]);
+                $this->getDispatcher()->dispatch(WorkerBundleEvents::WORKER_WORKLOAD_COMPLETED, $workerWorkloadEvent);
 
                 // Free memory
                 gc_collect_cycles();
@@ -148,6 +175,9 @@ abstract class Worker extends Command implements ContainerAwareInterface
                     return $this->onShutdown($controlCode);
                 }
             } catch (\Exception $e) {
+
+                // Dispatch event
+                $this->getDispatcher()->dispatch(WorkerBundleEvents::WORKER_WORKLOAD_EXCEPTION, new WorkerWorkloadEvent($this->getRedis(), $this->getQueueName(), get_class($this), $workload, $e));
 
                 $controlCode = $this->onException($e);
 
