@@ -7,6 +7,8 @@ parameters:
     worker_bundle.worker.current.logpath: app/logs/worker/current
     worker_bundle.worker.finished.logpath: app/logs/worker/finished
 
+    worker_bundle.sentinel: ~
+
 services:
     app.worker.queuenamegenerator:
         class: WorkerBundle\Utils\QueueNameGenerator
@@ -20,3 +22,6 @@ services:
     app.worker.manager:
         class: WorkerBundle\Utils\WorkerManager
         arguments: [%worker.config%]
+    app.worker.sentinel:
+        class: WorkerBundle\Sentinel\RedisSentinel
+        arguments: [%worker_bundle.sentinel%]
