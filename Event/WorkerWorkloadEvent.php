@@ -3,6 +3,7 @@
 namespace WorkerBundle\Event;
 
 use Symfony\Component\EventDispatcher\Event;
+use WorkerBundle\Queue\Queue;
 
 /**
  * Class WorkerWorkloadEvent
@@ -11,19 +12,14 @@ use Symfony\Component\EventDispatcher\Event;
 Final Class WorkerWorkloadEvent extends Event
 {
     /**
-     * @var string
+     * @var Queue
      */
-    private $workerProvider;
+    private $queue;
 
     /**
      * @var string
      */
     private $workerName;
-
-    /**
-     * @var string
-     */
-    private $workerQueue;
 
     /**
      * @var mixed
@@ -41,20 +37,18 @@ Final Class WorkerWorkloadEvent extends Event
     private $statistics;
 
     /**
-     * @param $workerProvider
-     * @param $workerQueue
+     * @param Queue $Queue
      * @param $workerName
      * @param $workload
      * @param null $exception
      */
-    public function __construct($workerProvider, $workerQueue, $workerName, $workload, $exception = null)
+    public function __construct(Queue $Queue, $workerName, $workload, $exception = null)
     {
-        $this->workerProvider   = $workerProvider;
-        $this->workerQueue      = $workerQueue;
-        $this->workerName       = $workerName;
-        $this->workload         = $workload;
-        $this->exception        = $exception;
-        $this->statistics       = [];
+        $this->queue        = $Queue;
+        $this->workerName   = $workerName;
+        $this->workload     = $workload;
+        $this->exception    = $exception;
+        $this->statistics   = [];
     }
 
     /**
@@ -63,14 +57,6 @@ Final Class WorkerWorkloadEvent extends Event
     public function getWorkerName()
     {
         return $this->workerName;
-    }
-
-    /**
-     * @return string
-     */
-    public function getWorkerQueue()
-    {
-        return $this->workerQueue;
     }
 
     /**
@@ -87,14 +73,6 @@ Final Class WorkerWorkloadEvent extends Event
     public function getException()
     {
         return $this->exception;
-    }
-
-    /**
-     * @return string
-     */
-    public function getWorkerProvider()
-    {
-        return $this->workerProvider;
     }
 
     /**

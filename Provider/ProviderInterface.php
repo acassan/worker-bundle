@@ -2,12 +2,6 @@
 
 namespace WorkerBundle\Provider;
 
-use WorkerBundle\Utils\Queue;
-
-/**
- * Interface ProviderInterface
- * @package WorkerBundle\Provider
- */
 interface ProviderInterface
 {
     /**
@@ -48,9 +42,9 @@ interface ProviderInterface
      * @abstract
      * @param string $queueName    The queue name
      * @param array  $queueOptions The queue options
-     * @return Queue
+     * @return \WorkerBundle\Queue\Queue
      */
-    public function createQueue($queueName, array $queueOptions = []);
+    public function createQueue($queueName, array $queueOptions = array());
 
     /**
      * Delete a queue.
@@ -91,6 +85,6 @@ interface ProviderInterface
      * @param array  $queueOptions The queue options
      * @return boolean
      */
-    public function updateQueue($queueName, array $queueOptions = []);
+    public function updateQueue($queueName, array $queueOptions = array());
 
 }

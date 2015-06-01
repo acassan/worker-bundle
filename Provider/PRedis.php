@@ -14,7 +14,7 @@ class PRedis extends BaseProvider
     protected $predis;
 
     /**
-     * @inheritdoc
+     * @param $predisConfiguration
      */
     public function __construct($predisConfiguration)
     {
@@ -26,7 +26,8 @@ class PRedis extends BaseProvider
     }
 
     /**
-     * @inheritdoc
+     * @param string $queueName
+     * @param mixed $workload
      */
     public function put($queueName, $workload)
     {
@@ -34,7 +35,9 @@ class PRedis extends BaseProvider
     }
 
     /**
-     * @inheritdoc
+     * @param string $queueName
+     * @param null $timeout
+     * @return mixed|null
      */
     public function get($queueName, $timeout = null)
     {
@@ -47,7 +50,8 @@ class PRedis extends BaseProvider
     }
 
     /**
-     * @inheritdoc
+     * @param string $queueName
+     * @return int
      */
     public function count($queueName)
     {
@@ -55,62 +59,16 @@ class PRedis extends BaseProvider
     }
 
     /**
-     * @inheritdoc
+     * @param $name
+     * @param $arguments
+     * @return bool
      */
-    public function listQueues($queueNamePrefix = null)
+    public function __call($name, $arguments)
     {
-        return $this->predis->keys($queueNamePrefix);
-    }
+        if(!method_exists($this, $name) && method_exists($this->predis, $name)) {
+            return $this->predis->{$name}($arguments);
+        }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function deleteQueue($queueName)
-    {
-        $this->predis->del($queueName);
-    }
-
-    /**
-     * @param $key
-     * @param $score
-     * @param $value
-     * @return int
-     */
-    public function ZAdd($key, $score, $value)
-    {
-        return $this->predis->zadd($key,[$value => $score]);
-    }
-
-    /**
-     * @param $key
-     * @param $start
-     * @param $stop
-     * @param null $withScore
-     * @return array
-     */
-    public function ZRange($key, $start, $stop, $withScore = null)
-    {
-        return is_null($withScore) ? $this->predis->zrange($key,$start, $stop) : $this->predis->zrange($key,$start, $stop, $withScore);
-    }
-
-    /**
-     * @param $key
-     * @param $scoreMin
-     * @param $scoreMax
-     * @return array
-     */
-    public function ZRangeByScore($key, $scoreMin, $scoreMax)
-    {
-        return $this->predis->zrangebyscore($key,$scoreMin, $scoreMax);
-    }
-
-    /**
-     * @param $key
-     * @param $timestamp
-     * @return int
-     */
-    public function expireAt($key, $timestamp)
-    {
-        return $this->predis->expireat($key, $timestamp);
+        return false;
     }
 }

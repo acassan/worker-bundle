@@ -1,0 +1,89 @@
+<?php
+
+namespace WorkerBundle\Queue;
+
+use WorkerBundle\Provider\ProviderInterface;
+
+/**
+ * Class Queue
+ * @package WorkerBundle\Queue
+ */
+class Queue
+{
+    /**
+     * The queue name
+     * @var string
+     */
+    protected $name;
+
+    /**
+     * The queue provider
+     * @var ProviderInterface
+     */
+    protected $provider;
+
+    /**
+     * @param string $name The queue name
+     * @param \WorkerBundle\Provider\ProviderInterface $provider The queue provider
+     */
+    public function __construct($name, ProviderInterface $provider)
+    {
+        $this->name     = $name;
+        $this->provider = $provider;
+    }
+
+    /**
+     * @return string Queue name
+     */
+    public function getName()
+    {
+        return $this->name;
+    }
+
+    /**
+     * Delete queue.
+     *
+     * @return boolean
+     */
+    public function delete()
+    {
+        return $this->provider->deleteQueue($this->getName());
+    }
+
+    /**
+     * Add workloads in the queue
+     * @param array $workloads
+     */
+    public function multiPut(array $workloads)
+    {
+        $this->provider->multiPut($this->name, $workloads);
+    }
+
+    /**
+     * Add a workload in the queue
+     * @param $workload
+     */
+    public function put($workload)
+    {
+        $this->provider->put($this->name, $workload);
+    }
+
+    /**
+     * Get a workload from the queue
+     * @param int|null $timeout
+     * @return mixed|null
+     */
+    public function get ($timeout = null)
+    {
+        return $this->provider->get($this->name, $timeout);
+    }
+
+    /**
+     * Return the number of item in the queue
+     * @return int
+     */
+    public function count()
+    {
+        return $this->provider->count($this->name);
+    }
+}

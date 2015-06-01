@@ -1,11 +1,12 @@
 <?php
+
 namespace WorkerBundle\DependencyInjection;
 
 use Symfony\Component\DependencyInjection\ContainerBuilder;
-use Symfony\Component\Config\FileLocator;
 use Symfony\Component\HttpKernel\DependencyInjection\Extension;
-use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Loader;
+use Symfony\Component\DependencyInjection\Definition;
+use Symfony\Component\DependencyInjection\Reference;
 
 /**
  * This is the class that loads and manages your bundle configuration
@@ -21,12 +22,12 @@ class WorkerExtension extends Extension
     {
         $configuration = new Configuration();
         $config = $this->processConfiguration($configuration, $configs);
-        $container->setParameter('worker.config', $config);
+
         if (isset($config['providers'])) {
             foreach ($config['providers'] as $id => $provider) {
                 $container->setDefinition(
-                $this->getAlias().'.provider.'.$id,
-                new Definition($provider['class'], $provider['arguments'])
+                    $this->getAlias().'.provider.'.$id,
+                    new Definition($provider['class'], $provider['arguments'])
                 );
             }
         }
@@ -34,16 +35,15 @@ class WorkerExtension extends Extension
         if (isset($config['queues'])) {
             foreach ($config['queues'] as $id => $queue) {
                 $container->setDefinition(
-                $this->getAlias().'.queue.'.$id,
-                new Definition('WorkerBundle\Utils\Queue', array(
-                $queue['name'],
-                new Reference($this->getAlias().'.provider.'.$queue['provider'])
-                ))
+                    $this->getAlias().'.queue.'.$id,
+                    new Definition('WorkerBundle\Queue\Queue', array(
+                        $queue['name'],
+                        new Reference($this->getAlias().'.provider.'.$queue['provider'])
+                    ))
                 );
             }
         }
 
-        $loader = new Loader\YamlFileLoader($container, new FileLocator(__DIR__.'/../Resources/config'));
-        $loader->load('services.yml');
+        $container->setParameter($this->getAlias().'.config', $config);
     }
 }

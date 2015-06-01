@@ -2,10 +2,6 @@
 
 namespace WorkerBundle\Provider;
 
-/**
- * Class BaseProvider
- * @package WorkerBundle\Provider
- */
 abstract class BaseProvider implements ProviderInterface
 {
     /**
@@ -35,7 +31,7 @@ abstract class BaseProvider implements ProviderInterface
     /**
      * {@inheritdoc}
      */
-    public function createQueue($queueName, array $queueOptions = [])
+    public function createQueue($queueName, array $queueOptions = array())
     {
         throw new \Exception('Provider '.__CLASS__.' does not implement '.__METHOD__);
     }
@@ -83,7 +79,7 @@ abstract class BaseProvider implements ProviderInterface
     /**
      * {@inheritdoc}
      */
-    public function updateQueue($queueName, array $queueOptions = [])
+    public function updateQueue($queueName, array $queueOptions = array())
     {
         throw new \Exception('Provider '.__CLASS__.' does not implement '.__METHOD__);
     }

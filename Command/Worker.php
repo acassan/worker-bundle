@@ -2,41 +2,49 @@
 
 namespace WorkerBundle\Command;
 
+use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\DependencyInjection\ContainerAwareInterface;
-use Symfony\Component\Console\Command\Command;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Symfony\Component\EventDispatcher\EventDispatcherInterface;
-use Symfony\Component\Serializer\Encoder\JsonEncoder;
-use Symfony\Component\Serializer\Normalizer\GetSetMethodNormalizer;
-use Symfony\Component\Serializer\Serializer;
-use Symfony\Component\Stopwatch\Stopwatch;
+use Symfony\Component\DependencyInjection\ContainerAwareInterface;
+use Symfony\Component\EventDispatcher\EventDispatcher;
+use WorkerBundle\Event\WorkerEvent;
 use WorkerBundle\Event\WorkerWorkloadEvent;
-use WorkerBundle\Utils\WorkerControlCodes;
+use WorkerBundle\Queue\Queue;
 use WorkerBundle\WorkerBundleEvents;
 
 /**
- * Class Worker
+ * Worker base
  * @package WorkerBundle\Command
  */
 abstract class Worker extends Command implements ContainerAwareInterface
 {
     /**
-     * @var ContainerInterface;
+     * @var \Symfony\Component\DependencyInjection\ContainerInterface;
      */
     private $container;
 
     /**
-     * @var InputInterface
+     * @var \Symfony\Component\Console\Input\InputInterface
      */
     private $input;
 
     /**
-     * @var OutputInterface
+     * @var \Symfony\Component\Console\Output\OutputInterface
      */
-    private $ouput;
+    private $output;
+
+    /**
+     * @var string
+     */
+    private $queueName;
+
+    /**
+     * @var string
+     */
+    private $workerName;
 
     /**
      * @var int
@@ -54,40 +62,27 @@ abstract class Worker extends Command implements ContainerAwareInterface
     private $workloadProcessed = 0;
 
     /**
-     * @var EventDispatcherInterface
+     * @var Queue
      */
-    private $dispatcher;
+    protected $queue;
 
     /**
-     * @var string
+     * @var EventDispatcher
      */
-    private $queueName;
-
-    /**
-     * @var Serializer
-     */
-    private $serializer;
-
-    /**
-     * @var Stopwatch
-     */
-    private $stopwatch;
-
+    protected $dispatcher;
 
     final protected function configure()
     {
         // Generic Options
         $this
-        ->addOption('worker-wait-timeout', null, InputOption::VALUE_REQUIRED, 'Number of second to wait for a new workload', 0)
-        ->addOption('worker-limit', null, InputOption::VALUE_REQUIRED, 'Number of workload to process', 0)
-        ->addOption('memory-limit', null, InputOption::VALUE_REQUIRED, 'Memory limit (Mb)', 0)
-        ->addOption('worker-exit-on-exception', null, InputOption::VALUE_NONE, 'Stop the worker on exception')
+            ->addOption('worker-wait-timeout', null, InputOption::VALUE_REQUIRED, 'Number of second to wait for a new workload', 0)
+            ->addOption('worker-limit', null, InputOption::VALUE_REQUIRED, 'Number of workload to process', 0)
+            ->addOption('memory-limit', null, InputOption::VALUE_REQUIRED, 'Memory limit (Mb)', 0)
+            ->addOption('worker-exit-on-exception', null, InputOption::VALUE_NONE, 'Stop the worker on exception')
         ;
 
-        // Configure function could be overwrited
         $this->configureWorker();
 
-        // Check queue has been defined
         if (!$this->queueName) {
             throw new \LogicException('The worker queue name cannot be empty.');
         }
@@ -96,26 +91,22 @@ abstract class Worker extends Command implements ContainerAwareInterface
     /**
      * @param InputInterface $input
      * @param OutputInterface $output
-     * @throws \Exception
      */
     protected function initialize(InputInterface $input, OutputInterface $output)
     {
-        $this->input                = $input;
-        $this->ouput                = $output;
-        $this->dispatcher           = $this->container->get('event_dispatcher');
-        $this->stopwatch            = new Stopwatch();
+        $this->input        = $input;
+        $this->output       = $output;
 
         // Limits
-        $this->limit                = intval($input->getOption('worker-limit'));
-        $this->memoryLimit          = intval($input->getOption('memory-limit'));
+        $this->limit        = intval($input->getOption('worker-limit'));
+        $this->memoryLimit  = intval($input->getOption('memory-limit'));
 
-        // Serializer
-        $this->serializer           = new Serializer([new GetSetMethodNormalizer()], [new JsonEncoder()]);
+        $this->dispatcher   = $this->getContainer()->get('event_dispatcher');
+        $this->workerName   = join('', array_slice(explode('\\', get_class($this)), -1));
 
-        $output->writeln("<comment>[".get_class($this)."] Initializing on queue '". $this->queueName."', worker-limit: '".$this->limit."', memory-limit: '".$this->memoryLimit."'</comment>");
+        $this->getContainer()->get('event_dispatcher')->dispatch(WorkerBundleEvents::WORKER_INITIALIZE, new WorkerEvent($this->getQueue(), $this->workerName));
 
-        // For supervisord
-        sleep(2);
+        $output->writeln("<comment>[".$this->getWorkerName()."] Initializing on queue '". $this->getQueue()->getName()."', worker-limit: '".$this->limit."', memory-limit: '".$this->memoryLimit."'</comment>");
     }
 
     /**
@@ -126,126 +117,51 @@ abstract class Worker extends Command implements ContainerAwareInterface
     final protected function execute(InputInterface $input, OutputInterface $output)
     {
         while(WorkerControlCodes::CAN_CONTINUE === ($controlCode = $this->canContinueExecution())) {
+            $queue = $this->getQueue();
+            if (null === $queue) {
+                return $this->shutdown(WorkerControlCodes::STOP_EXECUTION);
+            }
 
-            $workload   = $this->getNextWorkload();
-            $workloadId =  uniqid();
-
-            // Check queue has workload
+            $workload = $queue->get($input->getOption('worker-wait-timeout'));
             if (null === $workload) {
-                $controlCode = $this->onNoWorkload();
-
+                $controlCode = $this->onNoWorkload($queue);
                 if (WorkerControlCodes::CAN_CONTINUE !== $controlCode) {
-                    return $this->onShutdown($controlCode);
+                    return $this->shutdown($controlCode);
                 }
 
                 continue;
             }
 
             $this->workloadProcessed++;
-            $this->getOuput()->writeln(date('H:i:s')."- Worload received ..", OutputInterface::VERBOSITY_DEBUG);
 
             try {
+                $this->getContainer()->get('event_dispatcher')->dispatch(WorkerBundleEvents::WORKER_WORKLOAD_INITIALIZE, new WorkerWorkloadEvent($this->getQueue(), $this->workerName, $workload));
 
-                // Dispatch event initialize
-                $this->getDispatcher()->dispatch(WorkerBundleEvents::WORKER_WORKLOAD_INITIALIZE, new WorkerWorkloadEvent($this->getRedis(), $this->getQueueName(), get_class($this), $workload));
-
-                // Start stopwatch workload timer
-                $this->stopwatch->start('workload');
-
-                // Execute code worker
                 $controlCode = $this->executeWorker($input, $output, $workload);
 
-                // Stop workload timer
-                $workloadTimer = $this->stopwatch->stop('workload');
+                $this->getContainer()->get('event_dispatcher')->dispatch(WorkerBundleEvents::WORKER_WORKLOAD_COMPLETED, new WorkerWorkloadEvent($this->getQueue(), $this->workerName, $workload));
 
-                // Dispatch event completed
-                $workerWorkloadEvent = new WorkerWorkloadEvent($this->getRedis(), $this->getQueueName(), get_class($this), $workload);
-                $workerWorkloadEvent->setStatistics([
-                'duration'  => $workloadTimer->getDuration(),
-                'memory'    => $workloadTimer->getMemory(),
-                ]);
-                $this->getDispatcher()->dispatch(WorkerBundleEvents::WORKER_WORKLOAD_COMPLETED, $workerWorkloadEvent);
-
-                // Free memory
-                gc_collect_cycles();
-                $this->getOuput()->writeln(sprintf("Memory: %s Mb", round(memory_get_usage()/1048576,2)), OutputInterface::VERBOSITY_DEBUG);
-
-                // Check if workload stop worker
                 if (WorkerControlCodes::CAN_CONTINUE !== $controlCode) {
-                    return $this->onShutdown($controlCode);
+                    return $this->shutdown($controlCode);
                 }
+
+                $this->getOutput()->writeln(sprintf("Memory: %s Mb", round(memory_get_usage(true)/ 1024 / 1024,2)));
+
             } catch (\Exception $e) {
+                $controlCode = $this->onException($queue, $e);
 
-                // Dispatch event
-                $this->getDispatcher()->dispatch(WorkerBundleEvents::WORKER_WORKLOAD_EXCEPTION, new WorkerWorkloadEvent($this->getRedis(), $this->getQueueName(), get_class($this), $workload, $e));
-
-                $controlCode = $this->onException($e);
+                $this->getContainer()->get('event_dispatcher')->dispatch(WorkerBundleEvents::WORKER_WORKLOAD_EXCEPTION, new WorkerWorkloadEvent($this->getQueue(), $this->workerName, $workload, $e));
 
                 if (WorkerControlCodes::CAN_CONTINUE !== $controlCode) {
-                    return $this->onShutdown($controlCode);
+                    return $this->shutdown($controlCode);
                 }
-
                 if ($input->getOption('worker-exit-on-exception')) {
-                    return $this->onShutdown(WorkerControlCodes::EXIT_ON_EXCEPTION);
+                    return $this->shutdown(WorkerControlCodes::EXIT_ON_EXCEPTION);
                 }
             }
         }
 
-        return $this->onShutdown($controlCode);
-    }
-
-    /**
-     * @return \WorkerBundle\Provider\PRedis
-     */
-    public function getRedis()
-    {
-        return $this->container->get('app.worker.sentinel')->getRedis();
-    }
-
-    /**
-     * @return mixed
-     */
-    public function getNextWorkload()
-    {
-        $workload = $this->getRedis()->get($this->queueName, $this->input->getOption('worker-wait-timeout'));
-
-        return $workload;
-    }
-
-    /**
-     * Called when no workload was provided from the queue.
-     * @return int
-     */
-    protected function onNoWorkload()
-    {
-        return WorkerControlCodes::NO_WORKLOAD;
-    }
-
-    /**
-     * Called before exit.
-     *
-     * @param int $controlCode
-     * @return int Used as command exit code
-     */
-    protected function onShutdown($controlCode)
-    {
-        $this->getOuput()->writeln("Shutdown", OutputInterface::VERBOSITY_VERBOSE);
-
-        return $controlCode;
-    }
-
-    /**
-     * Called when Exception is catched during workload processing.
-     *
-     * @param \Exception $exception
-     * @return int
-     */
-    protected function onException(\Exception $exception)
-    {
-        $this->getOuput()->writeln("Exception during workload processing for queue {$this->queueName}. Class=".get_class($exception).". Message={$exception->getMessage()}. Code={$exception->getCode()}. Line=" . $exception->getLine());
-        $this->getContainer()->get('logger')->critical("[".get_class($this)."] Class=".get_class($exception).". Message={$exception->getMessage()}. Code={$exception->getCode()}. Line=" . $exception->getLine());
-
-        return WorkerControlCodes::STOP_EXECUTION;
+        return $this->shutdown($controlCode);
     }
 
     /**
@@ -275,12 +191,12 @@ abstract class Worker extends Command implements ContainerAwareInterface
 
     protected function configureWorker()
     {
-        // Do nothing, could be overwritted
+
     }
 
     /**
-     * @param InputInterface $input
-     * @param OutputInterface $output
+     * @param \Symfony\Component\Console\Input\InputInterface $input
+     * @param \Symfony\Component\Console\Output\OutputInterface $output
      * @param mixed $workload
      * @return int
      */
@@ -290,9 +206,59 @@ abstract class Worker extends Command implements ContainerAwareInterface
     }
 
     /**
+     * Called when Exception is catched during workload processing.
+     *
+     * @param \WorkerBundle\Queue\Queue $queue
+     * @param \Exception                          $exception
+     * @return int
+     */
+    protected function onException(Queue $queue, \Exception $exception)
+    {
+        $this->getOutput()->writeln("Exception during workload processing for queue {$queue->getName()}. Class=".get_class($exception).". Message={$exception->getMessage()}. Code={$exception->getCode()}");
+
+        return WorkerControlCodes::STOP_EXECUTION;
+    }
+
+    /**
+     * Called when no workload was provided from the queue.
+     *
+     * @param \WorkerBundle\Queue\Queue $queue
+     * @return int
+     */
+    protected function onNoWorkload(Queue $queue)
+    {
+        return WorkerControlCodes::NO_WORKLOAD;
+    }
+
+    /**
+     * Called before exit.
+     *
+     * @param int $controlCode
+     * @return int Used as command exit code
+     */
+    protected function onShutdown($controlCode)
+    {
+        $this->getContainer()->get('event_dispatcher')->dispatch(WorkerBundleEvents::WORKER_SHUTDOWN_COMPLETED, new WorkerEvent($this->getQueue(), $this->workerName));
+
+        return $controlCode;
+    }
+
+    /**
+     * @return ContainerInterface
+     */
+    protected function getContainer()
+    {
+        if (null === $this->container) {
+            $this->container = $this->getApplication()->getKernel()->getContainer();
+        }
+
+        return $this->container;
+    }
+
+    /**
      * Return command input interface.
      *
-     * @return InputInterface
+     * @return \Symfony\Component\Console\Input\InputInterface
      */
     protected function getInput()
     {
@@ -302,27 +268,28 @@ abstract class Worker extends Command implements ContainerAwareInterface
     /**
      * Return command output interface.
      *
-     * @return OutputInterface
+     * @return \Symfony\Component\Console\Output\OutputInterface
      */
-    protected function getOuput()
+    protected function getOutput()
     {
-        return $this->ouput;
+        return $this->output;
     }
 
     /**
-     * @return ContainerInterface
+     * Get the queue
+     * @return Queue
      */
-    public function getContainer()
+    protected function getQueue()
     {
-        return $this->container;
+        if ($this->queue === null) {
+            $this->queue = $this->getContainer()->get('worker.queue.'.$this->queueName);
+        }
+
+        return $this->queue;
     }
 
     /**
-     * Sets the Container.
-     *
-     * @param ContainerInterface|null $container A ContainerInterface instance or null
-     *
-     * @api
+     * @see ContainerAwareInterface::setContainer()
      */
     public function setContainer(ContainerInterface $container = null)
     {
@@ -332,14 +299,14 @@ abstract class Worker extends Command implements ContainerAwareInterface
     /**
      * @return string
      */
-    public function getQueueName()
+    protected function getQueueName()
     {
         return $this->queueName;
     }
 
     /**
-     * @param $queueName
-     * @return $this
+     * @param string $queueName
+     * @return Worker
      */
     public function setQueueName($queueName)
     {
@@ -349,18 +316,21 @@ abstract class Worker extends Command implements ContainerAwareInterface
     }
 
     /**
-     * @return Serializer
+     * @param int $controlCode
+     * @return int
      */
-    public function getSerializer()
+    private function shutdown($controlCode)
     {
-        return $this->serializer;
+        $exitCode = $this->onShutdown($controlCode);
+
+        return $exitCode;
     }
 
     /**
-     * @return EventDispatcherInterface
+     * @return string
      */
-    public function getDispatcher()
+    public function getWorkerName()
     {
-        return $this->dispatcher;
+        return $this->workerName;
     }
 }

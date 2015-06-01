@@ -1,10 +1,10 @@
 <?php
 
-namespace WorkerBundle\Utils;
+namespace WorkerBundle\Command;
 
 /**
  * Class WorkerControlCodes
- * @package WorkerBundle\Utils
+ * @package WorkerBundle\Command
  */
 final class WorkerControlCodes
 {

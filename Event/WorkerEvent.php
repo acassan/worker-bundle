@@ -3,6 +3,7 @@
 namespace WorkerBundle\Event;
 
 use Symfony\Component\EventDispatcher\Event;
+use WorkerBundle\Queue\Queue;
 
 /**
  * Class WorkerEvent
@@ -11,9 +12,9 @@ use Symfony\Component\EventDispatcher\Event;
 Final Class WorkerEvent extends Event
 {
     /**
-     * @var string
+     * @var Queue
      */
-    private $workerProvider;
+    private $queue;
 
     /**
      * @var string
@@ -21,25 +22,18 @@ Final Class WorkerEvent extends Event
     private $workerName;
 
     /**
-     * @var string
-     */
-    private $workerQueue;
-
-    /**
      * @var integer
      */
     private $controlCode;
 
     /**
-     * @param $workerProvider
-     * @param $workerQueue
+     * @param Queue $Queue
      * @param $workerName
      */
-    public function __construct($workerProvider, $workerQueue, $workerName)
+    public function __construct(Queue $Queue, $workerName)
     {
-        $this->workerProvider   = $workerProvider;
-        $this->workerQueue      = $workerQueue;
-        $this->workerName       = $workerName;
+        $this->queue        = $Queue;
+        $this->workerName   = $workerName;
     }
 
     /**
@@ -48,22 +42,6 @@ Final Class WorkerEvent extends Event
     public function getWorkerName()
     {
         return $this->workerName;
-    }
-
-    /**
-     * @return string
-     */
-    public function getWorkerQueue()
-    {
-        return $this->workerQueue;
-    }
-
-    /**
-     * @return string
-     */
-    public function getWorkerProvider()
-    {
-        return $this->workerProvider;
     }
 
     /**
