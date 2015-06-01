@@ -59,6 +59,14 @@ class PRedis extends BaseProvider
     }
 
     /**
+     * {@inheritdoc}
+     */
+    public function deleteQueue($queueName)
+    {
+        $this->predis->del($queueName);
+    }
+
+    /**
      * @param $name
      * @param $arguments
      * @return bool

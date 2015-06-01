@@ -72,6 +72,24 @@ class PSRedis extends BaseProvider
     }
 
     /**
+     * {@inheritdoc}
+     */
+    public function deleteQueue($queueName)
+    {
+        $this->masterDiscovery->getMaster()->del($queueName);
+    }
+
+    /**
+     * @return Client\ClientAdapter
+     * @throws \PSRedis\Exception\ConfigurationError
+     * @throws \PSRedis\Exception\ConnectionError
+     */
+    public function getMaster()
+    {
+        return $this->masterDiscovery->getMaster();
+    }
+
+    /**
      * @param $name
      * @param $arguments
      * @return bool
