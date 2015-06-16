@@ -31,6 +31,15 @@ class PRedis extends BaseProvider
      */
     public function put($queueName, $workload)
     {
+        $this->predis->rpush($queueName, serialize($workload));
+    }
+
+    /**
+     * @param $queueName
+     * @param $workload
+     */
+    public function putFirst($queueName, $workload)
+    {
         $this->predis->lpush($queueName, serialize($workload));
     }
 
