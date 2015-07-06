@@ -106,7 +106,7 @@ abstract class Worker extends Command implements ContainerAwareInterface
 
         $this->getContainer()->get('event_dispatcher')->dispatch(WorkerBundleEvents::WORKER_INITIALIZE, new WorkerEvent($this->getQueue(), $this->workerName));
 
-        $output->writeln("<comment>[".$this->getWorkerName()."] Initializing on queue '". $this->getQueue()->getName()."', worker-limit: '".$this->limit."', memory-limit: '".$this->memoryLimit."'</comment>");
+        $output->writeln("<comment>".date('H:i:s')." - [".$this->getWorkerName()."] Initializing on queue '". $this->getQueue()->getName()."', worker-limit: '".$this->limit."', memory-limit: '".$this->memoryLimit."'</comment>");
     }
 
     /**
@@ -144,9 +144,6 @@ abstract class Worker extends Command implements ContainerAwareInterface
                 if (WorkerControlCodes::CAN_CONTINUE !== $controlCode) {
                     return $this->shutdown($controlCode);
                 }
-
-                $this->getOutput()->writeln(sprintf("Memory: %s Mb", round(memory_get_usage(true)/ 1024 / 1024,2)));
-
             } catch (\Exception $e) {
                 $controlCode = $this->onException($queue, $e);
 
