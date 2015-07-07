@@ -145,14 +145,15 @@ abstract class Worker extends Command implements ContainerAwareInterface
                     return $this->shutdown($controlCode);
                 }
             } catch (\Exception $e) {
-                $controlCode = $this->onException($queue, $e);
-
-                $this->getContainer()->get('event_dispatcher')->dispatch(WorkerBundleEvents::WORKER_WORKLOAD_EXCEPTION, new WorkerWorkloadEvent($this->getQueue(), $this->workerName, $workload, $e));
+                $controlCode = $this->onException($queue, $workload, $e);
 
                 if (WorkerControlCodes::CAN_CONTINUE !== $controlCode) {
+                    $this->getContainer()->get('event_dispatcher')->dispatch(WorkerBundleEvents::WORKER_WORKLOAD_EXCEPTION, new WorkerWorkloadEvent($this->getQueue(), $this->workerName, $workload, $e));
                     return $this->shutdown($controlCode);
                 }
+
                 if ($input->getOption('worker-exit-on-exception')) {
+                    $this->getContainer()->get('event_dispatcher')->dispatch(WorkerBundleEvents::WORKER_WORKLOAD_EXCEPTION, new WorkerWorkloadEvent($this->getQueue(), $this->workerName, $workload, $e));
                     return $this->shutdown(WorkerControlCodes::EXIT_ON_EXCEPTION);
                 }
             }
@@ -205,11 +206,12 @@ abstract class Worker extends Command implements ContainerAwareInterface
     /**
      * Called when Exception is catched during workload processing.
      *
-     * @param \WorkerBundle\Queue\Queue $queue
-     * @param \Exception                          $exception
+     * @param Queue $queue
+     * @param $workload
+     * @param \Exception $exception
      * @return int
      */
-    protected function onException(Queue $queue, \Exception $exception)
+    protected function onException(Queue $queue, $workload, \Exception $exception)
     {
         $this->getOutput()->writeln("Exception during workload processing for queue {$queue->getName()}. Class=".get_class($exception).". Message={$exception->getMessage()}. Code={$exception->getCode()}");
 
