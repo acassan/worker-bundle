@@ -16,6 +16,11 @@ class PSRedis extends BaseProvider
      */
     protected $masterDiscovery;
 
+	/**
+	 * @var \PSredis\Client\ClientAdapter
+	 */
+	private $master;
+
     /**
      * @param $psredisConfiguration
      */
@@ -40,7 +45,7 @@ class PSRedis extends BaseProvider
      */
     public function put($queueName, $workload)
     {
-        $this->masterDiscovery->getMaster()->lpush($queueName, serialize($workload));
+        $this->getMaster()->lpush($queueName, serialize($workload));
     }
 
     /**
@@ -52,7 +57,7 @@ class PSRedis extends BaseProvider
      */
     public function get($queueName, $timeout = null)
     {
-        $result = $this->masterDiscovery->getMaster()->brpop($queueName, $timeout);
+        $result = $this->getMaster()->brpop($queueName, $timeout);
         if (empty($result)) {
             return null;
         } else {
@@ -68,7 +73,7 @@ class PSRedis extends BaseProvider
      */
     public function count($queueName)
     {
-        return $this->masterDiscovery->getMaster()->llen($queueName);
+        return $this->getMaster()->llen($queueName);
     }
 
     /**
@@ -76,7 +81,7 @@ class PSRedis extends BaseProvider
      */
     public function deleteQueue($queueName)
     {
-        $this->masterDiscovery->getMaster()->del($queueName);
+        $this->getMaster()->del($queueName);
     }
 
     /**
@@ -86,7 +91,11 @@ class PSRedis extends BaseProvider
      */
     public function getMaster()
     {
-        return $this->masterDiscovery->getMaster();
+		if(is_null($this->master)) {
+			$this->master = $this->masterDiscovery->getMaster();
+		}
+
+		return $this->master;
     }
 
     /**
@@ -96,8 +105,8 @@ class PSRedis extends BaseProvider
      */
     public function __call($name, $arguments)
     {
-        if(!method_exists($this, $name) && method_exists($this->masterDiscovery->getMaster(), $name)) {
-            return $this->masterDiscovery->getMaster()->{$name}($arguments);
+        if(!method_exists($this, $name) && method_exists($this->getMaster(), $name)) {
+            return $this->getMaster()->{$name}($arguments);
         }
 
         return false;
