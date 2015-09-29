@@ -88,4 +88,12 @@ class PRedis extends BaseProvider
 
         return false;
     }
+
+	/**
+	 * @return \Predis\Client
+	 */
+	public function getRedis()
+	{
+		return $this->predis;
+	}
 }
