@@ -75,7 +75,7 @@ abstract class Worker extends Command implements ContainerAwareInterface
     {
         // Generic Options
         $this
-            ->addOption('worker-wait-timeout', null, InputOption::VALUE_REQUIRED, 'Number of second to wait for a new workload', 0)
+            ->addOption('worker-wait-timeout', null, InputOption::VALUE_REQUIRED, 'Number of microsecond to wait for a new workload', 0)
             ->addOption('worker-limit', null, InputOption::VALUE_REQUIRED, 'Number of workload to process', 0)
             ->addOption('memory-limit', null, InputOption::VALUE_REQUIRED, 'Memory limit (Mb)', 0)
             ->addOption('worker-exit-on-exception', null, InputOption::VALUE_NONE, 'Stop the worker on exception')
@@ -122,7 +122,10 @@ abstract class Worker extends Command implements ContainerAwareInterface
                 return $this->shutdown(WorkerControlCodes::STOP_EXECUTION);
             }
 
-            $workload = $queue->get($input->getOption('worker-wait-timeout'));
+            // Wait worker-wait-timeout
+            usleep($input->getOption('worker-wait-timeout'));
+
+            $workload = $queue->get();
             if (null === $workload) {
                 $controlCode = $this->onNoWorkload($queue);
                 if (WorkerControlCodes::CAN_CONTINUE !== $controlCode) {
