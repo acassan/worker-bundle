@@ -123,7 +123,7 @@ abstract class Worker extends Command implements ContainerAwareInterface
             }
 
             // Wait worker-wait-timeout
-            usleep($input->getOption('worker-wait-timeout'));
+            usleep($input->getOption('worker-wait-timeout')*1000);
 
             $workload = $queue->get();
             if (null === $workload) {
